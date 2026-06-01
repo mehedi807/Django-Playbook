@@ -73,6 +73,8 @@ REST_FRAMEWORK = {
 }
 ```
 
+If you use a single settings module, the same block goes in `config/settings.py`.
+
 Now every view requires login by default. Override only for public endpoints:
 
 ```python
@@ -115,3 +117,123 @@ Auto-maps: `POST` → `add`, `PUT/PATCH` → `change`, `DELETE` → `delete`.
 
 **Use for:** Admin-facing APIs with role-based access via Django groups.
 **Not for:** Customer-facing APIs — use custom permissions like `IsOrderOwner`.
+
+---
+
+## 2. API Views — “APIView-first”
+
+Default to `APIView` for explicit request/response handling.
+
+Why:
+- Keeps endpoints small and predictable.
+- Makes it easy to enforce the service/selector split.
+- Works nicely with per-endpoint serializers and schema generation.
+
+### Pattern: nested serializers per endpoint
+
+Each endpoint defines its own `InputSerializer` / `OutputSerializer`.
+
+```python
+from rest_framework import serializers, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from . import selectors, services
+
+
+class AuctionCreateApi(APIView):
+    class InputSerializer(serializers.Serializer):
+        title = serializers.CharField(max_length=255)
+        starts_at = serializers.DateTimeField()
+        ends_at = serializers.DateTimeField()
+
+    class OutputSerializer(serializers.Serializer):
+        id = serializers.IntegerField()
+        title = serializers.CharField()
+
+    def post(self, request):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        auction = services.auction_create(user=request.user, **serializer.validated_data)
+        auction = selectors.auction_get(auction_id=auction.id)
+
+        return Response(self.OutputSerializer(auction).data, status=status.HTTP_201_CREATED)
+```
+
+Rules:
+- `GET` → validate `request.query_params`
+- `POST/PUT/PATCH` → validate `request.data`
+- Views should not contain business rules. If it’s “if/else domain logic”, it belongs in a service.
+
+### Pagination (PageNumberPagination)
+
+Keep pagination close to the endpoint if it’s only used there.
+
+```python
+from rest_framework.pagination import PageNumberPagination
+
+
+class AuctionPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+```
+
+---
+
+## 3. OpenAPI Schema — `InputSerializer` / `OutputSerializer`
+
+If you use drf-spectacular, you can make it auto-detect the nested serializers.
+
+```python
+# config/settings.py
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'core.schema.ApiAutoSchema',
+}
+```
+
+Then views can declare `InputSerializer` / `OutputSerializer`, and the schema generator uses them.
+
+Benefits:
+- No manual `@extend_schema` for most endpoints.
+- Request/response schema names stay unique per endpoint.
+
+---
+
+## 4. Unified Error Shape (exception handler)
+
+Goal: every API error response follows one shape.
+
+Example shape:
+
+```json
+{
+  "message": "Validation error",
+  "extra": {"fields": {"email": ["This field is required."]}}
+}
+```
+
+Set it once:
+
+```python
+# config/settings.py
+REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'core.exceptions.api_exception_handler',
+}
+```
+
+### Business errors: raise ApplicationError from services
+
+```python
+from core.exceptions import ApplicationError
+
+raise ApplicationError(
+    message='Auction duration must be at least 1 hour(s).',
+    extra={'min_hours': 1},
+)
+```
+
+Rules:
+- Services raise `ApplicationError` for “valid request, but not allowed by business rules”.
+- Views do not catch/translate errors. Let the exception handler produce the response.
