@@ -7,28 +7,38 @@
 ```
 project_root/
     manage.py
-    requirements/
+    .env
+    requirements.txt
     config/                      ← project config (NOT a Django app)
         settings/
             base.py
             dev.py
             prod.py
+        env.py                ← django-environ wrapper
+        celery.py             ← Celery app bootstrap
         urls.py
         wsgi.py
         asgi.py
     appX/
-        apis.py                  ← handles request/response only
-        services.py              ← DB write operations, business logic
-        selectors.py             ← complex read queries for specific API needs
-        managers.py              ← reusable query vocabulary on models
-        permissions.py           ← custom DRF permissions
-        constants.py             ← app-specific constants/choices
-        tasks.py                 ← Celery background tasks
+        apis.py               ← user-facing APIs (or split: apis_user/apis_admin)
+        urls.py               ← include() endpoints (or split urls_user/urls_admin)
+        selectors.py
+        services.py
+        tasks.py
+        consumers.py          ← WebSocket consumer(s), if needed
+        routing.py            ← websocket_urlpatterns, if needed
+        managers.py           ← reusable query vocabulary on models, if needed
+        permissions.py        ← custom DRF permissions, if needed
         models.py
-        serializers.py
-        urls.py
-    core/                        ← shared Django app (in INSTALLED_APPS)
-        constants.py             ← only truly global constants
+        constants.py
+    core/
+        apps.py               ← AppConfig declaration for INSTALLED_APPS
+        models.py             ← base abstract models
+        exceptions.py         ← API exception handler + ApplicationError
+        schema.py             ← drf-spectacular AutoSchema tweaks
+        services.py           ← shared helpers (e.g., model_update)
+        ws_auth.py            ← JWT auth middleware for websockets
+        pagination.py
 ```
 
 ### Variant: Single `settings.py` (reference backend style)
@@ -39,6 +49,7 @@ If your project is small/medium and you want less file hopping, keep settings in
 project_root/
     manage.py
     .env
+    requirements.txt
     config/
         settings.py           ← single settings module
         env.py                ← django-environ wrapper
@@ -54,9 +65,13 @@ project_root/
         tasks.py
         consumers.py          ← WebSocket consumer(s), if needed
         routing.py            ← websocket_urlpatterns, if needed
+        managers.py           ← reusable query vocabulary on models, if needed
+        permissions.py        ← custom DRF permissions, if needed
         models.py
         constants.py
     core/
+        apps.py               ← AppConfig declaration for INSTALLED_APPS
+        models.py             ← base abstract models
         exceptions.py         ← API exception handler + ApplicationError
         schema.py             ← drf-spectacular AutoSchema tweaks
         services.py           ← shared helpers (e.g., model_update)
