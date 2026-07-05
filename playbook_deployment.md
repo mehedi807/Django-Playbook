@@ -730,7 +730,7 @@ sudo systemctl reload gunicorn # zero-downtime: sends HUP, workers restart gradu
 
 To automate the deployment, configure a GitHub Action that connects to your server via SSH and runs the update commands automatically on push to `main`.
 
-Here is a basic example `.github/workflows/deploy.yml`:
+Here is a basic example `.github/workflows/deploy.yml` (Django with Docker):
 ```yaml
 name: Deploy to VPS
 
@@ -757,4 +757,49 @@ jobs:
             docker compose up -d
             docker compose exec -T web python manage.py migrate
 ```
-*(Make sure to add `SERVER_IP`, `SSH_USERNAME`, and `SSH_PRIVATE_KEY` to your repository's GitHub Action Secrets)*
+
+Here is a basic example `.github/workflows/deploy.yml` (Next.js with PM2):
+```yaml
+name: Deploy Next.js to VPS (PM2)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/nextjs-app
+            git pull origin main
+            npm ci
+            npm run build
+            pm2 reload nextjs-app
+```
+#### Get the SSH Private Key for GitHub Actions
+
+1. **Generate a new SSH key pair** (on your local machine or VPS):
+   ```bash
+   ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_actions -N ""
+   ```
+   This generates two files:
+   - A private key: `~/.ssh/github_actions`
+   - A public key: `~/.ssh/github_actions.pub`
+
+2. **Authorize the key on the VPS**:
+   ```bash
+   mkdir -p /home/deploy/.ssh
+   cat ~/.ssh/github_actions.pub >> /home/deploy/.ssh/authorized_keys
+   chmod 700 /home/deploy/.ssh
+   chmod 600 /home/deploy/.ssh/authorized_keys
+   chown -R deploy:deploy /home/deploy/.ssh
+   ```
+  
+*(Make sure to add `SERVER_IP`, `SSH_USERNAME`, and `SSH_PRIVATE_KEY` to repository's GitHub Action Secrets.)*
