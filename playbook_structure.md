@@ -126,7 +126,8 @@ Common root files:
 - `.env` + `.env.example` → local config
 - `requirements.txt` (or `pyproject.toml`) → Python deps
 - `Dockerfile` → container build
-- `docker-compose.yml` → local stack (DB/Redis/etc)
+- `docker-compose.dev.yml` → local development stack
+- `docker-compose.yml` → production stack
 
 ## config/ vs core/
 

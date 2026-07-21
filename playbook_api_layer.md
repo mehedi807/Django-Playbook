@@ -184,13 +184,20 @@ class AuctionPagination(PageNumberPagination):
 
 ## 3. OpenAPI Schema — `InputSerializer` / `OutputSerializer`
 
-If you use `drf-spectacular`, you can make it auto-detect the nested serializers by creating a custom auto-schema class.
+If you use `drf-spectacular`, you can make it auto-detect the nested serializers and retrieve custom endpoint descriptions defined as class attributes (avoiding source comments and `@extend_schema` decorators) by creating a custom auto-schema class.
 
 ```python
 # core/schema.py
 from drf_spectacular.openapi import AutoSchema
 
 class ApiAutoSchema(AutoSchema):
+    def get_description(self):
+        if hasattr(self.view, "description"):
+            if isinstance(self.view.description, dict):
+                return self.view.description.get(self.method)
+            return self.view.description
+        return super().get_description()
+
     def get_request_serializer(self):
         if hasattr(self.view, 'InputSerializer'):
             return self.view.InputSerializer
@@ -211,7 +218,7 @@ REST_FRAMEWORK = {
 }
 ```
 
-Now, `drf-spectacular` will automatically map request and response definitions to your `InputSerializer` and `OutputSerializer` classes without requiring manual `@extend_schema` decorators on every view.
+Now, `drf-spectacular` will automatically map request/response definitions to your `InputSerializer`/`OutputSerializer` classes, and dynamically pull endpoint description strings or method-specific dictionaries from the view class `description` attribute.
 
 ---
 

@@ -67,4 +67,4 @@ STRIPE_SECRET_KEY = env.str("STRIPE_SECRET_KEY", default="")
 
 1. Copy the example file: `cp .env.example .env`.
 2. Fill in the missing secrets (Stripe keys, DB passwords).
-3. Ensure `docker-compose.yml` points to the correct `.env` file via the `env_file` key.
+3. Ensure both `docker-compose.dev.yml` and `docker-compose.yml` point to the correct `.env` file via their `env_file` keys.
